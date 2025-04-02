@@ -1,0 +1,48 @@
+[
+    {
+      "name": "reasoning_deployment_1",
+      "module": { "name": "reasoning_modules" },
+      "node": { "ip": "localhost" },
+      "config": {
+        "config_name": "reasoning_config_1",
+        "llm_config": {
+          "config_name": "model_1",
+          "model": "gpt-4o-mini",
+          "temperature": 0.7,
+          "max_tokens": 1000,
+          "api_base": "https://api.openai.com/v1"
+        },
+        "system_prompt": {
+          "role": "You are a logical reasoning assistant."
+        }
+      },
+      "kb_deployments": [
+        {
+          "name": "kb_deployment_1"
+        }
+      ]
+    },
+    {
+      "name": "validation_deployment_1",
+      "module": { "name": "validation_modules" },
+      "node": { "ip": "localhost" },
+      "config": {
+        "config_name": "validation_config_1",
+        "llm_config": {
+          "config_name": "model_1",
+          "model": "gpt-4o-mini",
+          "temperature": 0.7,
+          "max_tokens": 1000,
+          "api_base": "https://api.openai.com/v1"
+        },
+        "system_prompt": {
+          "role": "You are a logical reasoning validator that carefully evaluates the quality of reasoning."
+        }
+      },
+      "kb_deployments": [
+        {
+          "name": "kb_deployment_1"
+        }
+      ]
+    }
+  ]

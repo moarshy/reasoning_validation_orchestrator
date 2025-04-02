@@ -1,0 +1,17 @@
+[
+    {
+      "name": "orchestrator_1",
+      "module": { "name": "reasoning_validation_orchestrator" },
+      "node": { "ip": "localhost" },
+      "config": {
+        "config_name": "orchestrator_config_1"
+      },
+      "agent_deployments": [
+        { "name": "reasoning_deployment_1" },
+        { "name": "validation_deployment_1" }
+      ],
+      "kb_deployments": [
+        { "name": "kb_deployment_1" }
+      ]
+    }
+  ]
