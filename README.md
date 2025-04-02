@@ -1,1 +1,1 @@
-# Improving LLM Reasoning with Naptha Reasoning Modules
+# Improving LLM Reasoning with Naptha Reasoning Modules and Naptha Validation Modules
