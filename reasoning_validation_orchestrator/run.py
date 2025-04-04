@@ -14,21 +14,25 @@ from typing import Dict
 logger = logging.getLogger(__name__)
 
 class ReasoningValidationOrchestrator:
-    async def create(self, deployment: OrchestratorDeployment, *args, **kwargs):
-        self.deployment = deployment
-        
-        if not hasattr(self.deployment, 'agent_deployments') or not self.deployment.agent_deployments or len(self.deployment.agent_deployments) < 2:
-            logger.error(f"Missing or insufficient agent deployments. Found: {getattr(self.deployment, 'agent_deployments', None)}")
+    async def create(self, deployment: dict, *args, **kwargs):
+        # Use dictionary access if deployment is a dict
+        agent_deployments = deployment.get("agent_deployments")
+        kb_deployments = deployment.get("kb_deployments")
+
+        logger.info(f"Creating orchestrator with deployment: {deployment}")
+        if not agent_deployments or len(agent_deployments) < 2:
+            logger.error(f"Missing or insufficient agent deployments. Found: {agent_deployments}")
             raise ValueError("Orchestrator requires exactly 2 agent deployments: reasoning and validation")
-        
-        self.agent_deployments = self.deployment.agent_deployments
-        
-        if not hasattr(self.deployment, 'kb_deployments') or not self.deployment.kb_deployments:
-            logger.error(f"Missing KB deployments. Found: {getattr(self.deployment, 'kb_deployments', None)}")
+
+        self.deployment = deployment
+        self.agent_deployments = agent_deployments
+
+        if not kb_deployments:
+            logger.error(f"Missing KB deployments. Found: {kb_deployments}")
             raise ValueError("Orchestrator requires at least one KB deployment")
-        
-        self.kb_deployments = self.deployment.kb_deployments
-        
+
+        self.kb_deployments = kb_deployments
+
         try:
             self.reasoning_agent = Agent()
             await self.reasoning_agent.create(deployment=self.agent_deployments[0], *args, **kwargs)
@@ -36,7 +40,7 @@ class ReasoningValidationOrchestrator:
             logger.error(f"Failed to initialize reasoning agent: {e}")
             logger.error(f"Agent deployment details: {self.agent_deployments[0]}")
             raise
-        
+
         try:
             self.validation_agent = Agent()
             await self.validation_agent.create(deployment=self.agent_deployments[1], *args, **kwargs)
@@ -44,7 +48,7 @@ class ReasoningValidationOrchestrator:
             logger.error(f"Failed to initialize validation agent: {e}")
             logger.error(f"Agent deployment details: {self.agent_deployments[1]}")
             raise
-        
+
         try:
             self.kb = KnowledgeBase()
             await self.kb.create(deployment=self.kb_deployments[0], *args, **kwargs)
