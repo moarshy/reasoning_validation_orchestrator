@@ -15,21 +15,42 @@ logger = logging.getLogger(__name__)
 class ReasoningValidationOrchestrator:
     async def create(self, deployment: OrchestratorDeployment, *args, **kwargs):
         self.deployment = deployment
+        
+        if not hasattr(self.deployment, 'agent_deployments') or not self.deployment.agent_deployments or len(self.deployment.agent_deployments) < 2:
+            logger.error(f"Missing or insufficient agent deployments. Found: {getattr(self.deployment, 'agent_deployments', None)}")
+            raise ValueError("Orchestrator requires exactly 2 agent deployments: reasoning and validation")
+        
         self.agent_deployments = self.deployment.agent_deployments
+        
+        if not hasattr(self.deployment, 'kb_deployments') or not self.deployment.kb_deployments:
+            logger.error(f"Missing KB deployments. Found: {getattr(self.deployment, 'kb_deployments', None)}")
+            raise ValueError("Orchestrator requires at least one KB deployment")
+        
         self.kb_deployments = self.deployment.kb_deployments
         
-        self.reasoning_agent = Agent()
-        await self.reasoning_agent.create(
-            deployment=self.agent_deployments[0], *args, **kwargs
-        )
+        try:
+            self.reasoning_agent = Agent()
+            await self.reasoning_agent.create(deployment=self.agent_deployments[0], *args, **kwargs)
+        except Exception as e:
+            logger.error(f"Failed to initialize reasoning agent: {e}")
+            logger.error(f"Agent deployment details: {self.agent_deployments[0]}")
+            raise
         
-        self.validation_agent = Agent()
-        await self.validation_agent.create(
-            deployment=self.agent_deployments[1], *args, **kwargs
-        )
+        try:
+            self.validation_agent = Agent()
+            await self.validation_agent.create(deployment=self.agent_deployments[1], *args, **kwargs)
+        except Exception as e:
+            logger.error(f"Failed to initialize validation agent: {e}")
+            logger.error(f"Agent deployment details: {self.agent_deployments[1]}")
+            raise
         
-        self.kb = KnowledgeBase()
-        await self.kb.create(deployment=self.kb_deployments[0], *args, **kwargs)
+        try:
+            self.kb = KnowledgeBase()
+            await self.kb.create(deployment=self.kb_deployments[0], *args, **kwargs)
+        except Exception as e:
+            logger.error(f"Failed to initialize KB: {e}")
+            logger.error(f"KB deployment details: {self.kb_deployments[0]}")
+            raise
 
     async def run(self, module_run: OrchestratorRunInput, *args, **kwargs):
         run_id = str(uuid.uuid4())
