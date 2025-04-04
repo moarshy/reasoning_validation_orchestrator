@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from naptha_sdk.modules.agent import Agent
 from naptha_sdk.modules.kb import KnowledgeBase
 from naptha_sdk.schemas import OrchestratorRunInput, OrchestratorDeployment, AgentRunInput, KBRunInput
+import pathlib
 from naptha_sdk.user import sign_consumer_id, get_private_key_from_pem
 from reasoning_validation_orchestrator.schemas import InputSchema
 import traceback
@@ -151,9 +152,16 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     naptha = Naptha()
     
+    # deployment = asyncio.run(setup_module_deployment(
+    #     "orchestrator", 
+    #     "reasoning_validation_orchestrator/configs/deployment.json", 
+    #     node_url=os.getenv("NODE_URL")
+    # ))
+
+    base_path = pathlib.Path(__file__).parent.absolute()
     deployment = asyncio.run(setup_module_deployment(
         "orchestrator", 
-        "reasoning_validation_orchestrator/configs/deployment.json", 
+        str(base_path / "configs/deployment.json"), 
         node_url=os.getenv("NODE_URL")
     ))
     
