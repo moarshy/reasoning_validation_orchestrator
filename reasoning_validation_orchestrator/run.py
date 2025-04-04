@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 from naptha_sdk.modules.agent import Agent
 from naptha_sdk.modules.kb import KnowledgeBase
-from naptha_sdk.schemas import OrchestratorRunInput, AgentRunInput, KBRunInput
+from naptha_sdk.schemas import OrchestratorRunInput, AgentRunInput, KBRunInput, AgentDeployment, KBDeployment
 from naptha_sdk.user import sign_consumer_id, get_private_key_from_pem
 from reasoning_validation_orchestrator.schemas import InputSchema
 
@@ -16,25 +16,84 @@ logger = logging.getLogger(__name__)
 
 class ReasoningValidationOrchestrator:
     async def create(self, deployment, *args, **kwargs):
-        # Handle deployment as dict or object (Pydantic model) with attributes
-        if isinstance(deployment, dict):
-            agent_deployments = deployment.get("agent_deployments")
-            kb_deployments = deployment.get("kb_deployments")
-        else:
-            agent_deployments = deployment.agent_deployments
-            kb_deployments = deployment.kb_deployments
-
-        if not agent_deployments or len(agent_deployments) < 2:
-            logger.error(f"Missing or insufficient agent deployments. Found: {agent_deployments}")
+        logger.info(f"Creating orchestrator with deployment: {deployment}")
+        
+        if not hasattr(deployment, 'agent_deployments') or len(deployment.agent_deployments) < 2:
+            logger.error(f"Missing or insufficient agent deployments. Found: {getattr(deployment, 'agent_deployments', None)}")
+            try:
+                config_path = "reasoning_validation_orchestrator/configs/deployment.json"
+                logger.info(f"Attempting to load agent deployments from {config_path}")
+                
+                with open(config_path, "r") as f:
+                    deployments_config = json.load(f)
+                
+                if isinstance(deployments_config, list) and len(deployments_config) > 0:
+                    deployment_config = deployments_config[0]
+                    
+                    if "agent_deployments" in deployment_config and len(deployment_config["agent_deployments"]) >= 2:
+                        # Create Agent deployment objects
+                        agent_deployments = []
+                        for agent_config in deployment_config["agent_deployments"][:2]:  # Take first two
+                            agent_config["node"] = deployment.node.dict() if hasattr(deployment.node, 'dict') else deployment.node
+                            agent_deployments.append(AgentDeployment(**agent_config))
+                        
+                        deployment.agent_deployments = agent_deployments
+                        logger.info(f"Successfully loaded {len(agent_deployments)} agent deployments")
+                    else:
+                        raise ValueError("Configuration doesn't have enough agent deployments")
+                else:
+                    raise ValueError("Invalid deployment configuration format")
+                
+            except Exception as e:
+                logger.error(f"Failed to load agent deployments from configuration: {e}")
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                raise ValueError("Orchestrator requires exactly 2 agent deployments: reasoning and validation")
+        
+        if not hasattr(deployment, 'agent_deployments') or len(deployment.agent_deployments) < 2:
             raise ValueError("Orchestrator requires exactly 2 agent deployments: reasoning and validation")
+        
+        if not hasattr(deployment, 'kb_deployments') or not deployment.kb_deployments:
+            logger.error(f"Missing KB deployments. Found: {getattr(deployment, 'kb_deployments', None)}")
+            # Try to load KB deployments from configuration
+            try:
+                config_path = "reasoning_validation_orchestrator/configs/deployment.json"
+                logger.info(f"Attempting to load KB deployments from {config_path}")
+                
+                if not 'deployments_config' in locals():
+                    with open(config_path, "r") as f:
+                        deployments_config = json.load(f)
+                    
+                    if isinstance(deployments_config, list) and len(deployments_config) > 0:
+                        deployment_config = deployments_config[0]
+                    else:
+                        raise ValueError("Invalid deployment configuration format")
+                
+                # Get KB deployments
+                if "kb_deployments" in deployment_config and len(deployment_config["kb_deployments"]) > 0:
+                    # Create KB deployment objects
+                    kb_deployments = []
+                    for kb_config in deployment_config["kb_deployments"]:
+                        # Use the same node as the orchestrator
+                        kb_config["node"] = deployment.node.dict() if hasattr(deployment.node, 'dict') else deployment.node
+                        kb_deployments.append(KBDeployment(**kb_config))
+                    
+                    # Set KB deployments on the deployment object
+                    deployment.kb_deployments = kb_deployments
+                    logger.info(f"Successfully loaded {len(kb_deployments)} KB deployments")
+                else:
+                    raise ValueError("Configuration doesn't have KB deployments")
+                
+            except Exception as e:
+                logger.error(f"Failed to load KB deployments from configuration: {e}")
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                raise ValueError("Orchestrator requires at least one KB deployment")
+        
+        if not hasattr(deployment, 'kb_deployments') or not deployment.kb_deployments:
+            raise ValueError("Orchestrator requires at least one KB deployment")
 
         self.deployment = deployment
-        self.agent_deployments = agent_deployments
-
-        if not kb_deployments:
-            logger.error(f"Missing KB deployments. Found: {kb_deployments}")
-            raise ValueError("Orchestrator requires at least one KB deployment")
-        self.kb_deployments = kb_deployments
+        self.agent_deployments = deployment.agent_deployments
+        self.kb_deployments = deployment.kb_deployments
 
         try:
             self.reasoning_agent = Agent()
@@ -155,21 +214,11 @@ if __name__ == "__main__":
 
     naptha = Naptha()
 
-    # Load deployment using the setup function.
     deployment = asyncio.run(setup_module_deployment(
         "orchestrator",
         "reasoning_validation_orchestrator/configs/deployment.json",
         node_url=os.getenv("NODE_URL")
     ))
-
-    # If the deployment is missing agent or KB deployments, load and inject them from JSON.
-    if not deployment.agent_deployments or not deployment.kb_deployments:
-        with open("reasoning_validation_orchestrator/configs/deployment.json", "r") as f:
-            deployments = json.load(f)
-        if deployments and isinstance(deployments, list):
-            deployment_dict = deployments[0]  # Choose the first deployment entry
-            deployment.agent_deployments = deployment_dict.get("agent_deployments", [])
-            deployment.kb_deployments = deployment_dict.get("kb_deployments", [])
 
     input_params = {
         "problem": "What is the sum of all integers from 1 to 100?",
