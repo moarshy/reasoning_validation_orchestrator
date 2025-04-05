@@ -9,9 +9,6 @@
       "agent_deployments": [
         { "name": "reasoning_deployment_1" },
         { "name": "validation_deployment_1" }
-      ],
-      "kb_deployments": [
-        { "name": "kb_deployment_1" }
       ]
     }
   ]
