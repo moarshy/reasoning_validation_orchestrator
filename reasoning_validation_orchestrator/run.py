@@ -7,8 +7,7 @@ import uuid
 from dotenv import load_dotenv
 
 from naptha_sdk.modules.agent import Agent
-from naptha_sdk.modules.kb import KnowledgeBase
-from naptha_sdk.schemas import OrchestratorRunInput, AgentRunInput, KBRunInput, AgentDeployment, KBDeployment
+from naptha_sdk.schemas import OrchestratorRunInput, AgentRunInput, AgentDeployment
 from naptha_sdk.user import sign_consumer_id, get_private_key_from_pem
 from reasoning_validation_orchestrator.schemas import InputSchema
 
@@ -51,49 +50,9 @@ class ReasoningValidationOrchestrator:
         
         if not hasattr(deployment, 'agent_deployments') or len(deployment.agent_deployments) < 2:
             raise ValueError("Orchestrator requires exactly 2 agent deployments: reasoning and validation")
-        
-        if not hasattr(deployment, 'kb_deployments') or not deployment.kb_deployments:
-            logger.error(f"Missing KB deployments. Found: {getattr(deployment, 'kb_deployments', None)}")
-            # Try to load KB deployments from configuration
-            try:
-                config_path = "reasoning_validation_orchestrator/configs/deployment.json"
-                logger.info(f"Attempting to load KB deployments from {config_path}")
-                
-                if not 'deployments_config' in locals():
-                    with open(config_path, "r") as f:
-                        deployments_config = json.load(f)
-                    
-                    if isinstance(deployments_config, list) and len(deployments_config) > 0:
-                        deployment_config = deployments_config[0]
-                    else:
-                        raise ValueError("Invalid deployment configuration format")
-                
-                # Get KB deployments
-                if "kb_deployments" in deployment_config and len(deployment_config["kb_deployments"]) > 0:
-                    # Create KB deployment objects
-                    kb_deployments = []
-                    for kb_config in deployment_config["kb_deployments"]:
-                        # Use the same node as the orchestrator
-                        kb_config["node"] = deployment.node.dict() if hasattr(deployment.node, 'dict') else deployment.node
-                        kb_deployments.append(KBDeployment(**kb_config))
-                    
-                    # Set KB deployments on the deployment object
-                    deployment.kb_deployments = kb_deployments
-                    logger.info(f"Successfully loaded {len(kb_deployments)} KB deployments")
-                else:
-                    raise ValueError("Configuration doesn't have KB deployments")
-                
-            except Exception as e:
-                logger.error(f"Failed to load KB deployments from configuration: {e}")
-                logger.error(f"Traceback: {traceback.format_exc()}")
-                raise ValueError("Orchestrator requires at least one KB deployment")
-        
-        if not hasattr(deployment, 'kb_deployments') or not deployment.kb_deployments:
-            raise ValueError("Orchestrator requires at least one KB deployment")
 
         self.deployment = deployment
         self.agent_deployments = deployment.agent_deployments
-        self.kb_deployments = deployment.kb_deployments
 
         try:
             self.reasoning_agent = Agent()
@@ -111,25 +70,9 @@ class ReasoningValidationOrchestrator:
             logger.error(f"Agent deployment details: {self.agent_deployments[1]}")
             raise
 
-        try:
-            self.kb = KnowledgeBase()
-            await self.kb.create(deployment=self.kb_deployments[0], *args, **kwargs)
-        except Exception as e:
-            logger.error(f"Failed to initialize KB: {e}")
-            logger.error(f"KB deployment details: {self.kb_deployments[0]}")
-            raise
-
     async def run(self, module_run: OrchestratorRunInput, *args, **kwargs):
         run_id = str(uuid.uuid4())
         private_key = get_private_key_from_pem(os.getenv("PRIVATE_KEY_FULL_PATH"))
-
-        init_result = await self.kb.run(KBRunInput(
-            consumer_id=module_run.consumer_id,
-            inputs={"func_name": "init"},
-            deployment=self.kb_deployments[0],
-            signature=sign_consumer_id(module_run.consumer_id, private_key)
-        ))
-        logger.info(f"KB Init result: {init_result}")
 
         reasoning_input = {
             "func_name": "reason",
@@ -173,22 +116,6 @@ class ReasoningValidationOrchestrator:
             logger.error(f"Error in validation step: {e}")
             logger.error(f"Full traceback:\n{''.join(traceback.format_tb(e.__traceback__))}")
             raise e
-
-        try:
-            kb_data = {
-                "problem": module_run.inputs.problem,
-                "solution": validation_result.get('final_answer', ''),
-                "reasoning": validation_result.get('best_thought', '')
-            }
-            add_data_result = await self.kb.run(KBRunInput(
-                consumer_id=module_run.consumer_id,
-                inputs={"func_name": "add_data", "func_input_data": kb_data},
-                deployment=self.kb_deployments[0],
-                signature=sign_consumer_id(module_run.consumer_id, private_key)
-            ))
-            logger.info(f"KB Add data result: {add_data_result}")
-        except Exception as e:
-            logger.error(f"Error storing results in KB: {e}")
 
         result = {
             "problem": module_run.inputs.problem,
