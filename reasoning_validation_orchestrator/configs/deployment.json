@@ -9,10 +9,6 @@
     "agent_deployments": [
       { "name": "reasoning_deployment_1" },
       { "name": "validation_deployment_1" }
-    ],
-    "kb_deployments": [],
-    "tool_deployments": [],
-    "memory_deployments": [],
-    "environment_deployments": []
+    ]
   }
 ]
