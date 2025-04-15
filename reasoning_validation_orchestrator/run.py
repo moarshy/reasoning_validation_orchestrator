@@ -88,8 +88,9 @@ class ReasoningValidationOrchestrator:
         )
 
         try:
-            reasoning_result = await self.reasoning_agent.run(reasoning_run_input)
-            logger.info(f"Reasoning completed with {len(reasoning_result['thoughts'])} thoughts")
+            reasoning_run = await self.reasoning_agent.run(reasoning_run_input)
+            reasoning_result = reasoning_run.results[0] if reasoning_run.results else {}
+            logger.info(f"Reasoning completed with {len(reasoning_result.get('thoughts', []))} thoughts")
         except Exception as e:
             logger.error(f"Error in reasoning step: {e}")
             logger.error(f"Full traceback:\n{''.join(traceback.format_tb(e.__traceback__))}")
@@ -110,6 +111,7 @@ class ReasoningValidationOrchestrator:
 
         try:
             validation_result = await self.validation_agent.run(validation_run_input)
+            validation_result = validation_result.results[0] if validation_result.results else {}
             best_thought_idx = validation_result.get('best_thought_index', 0)
             logger.info(f"Validation completed, selected best thought index: {best_thought_idx}")
         except Exception as e:
